@@ -15,12 +15,12 @@ def convert_fMRIvols_to_A424(data_path, output_path):
     """
     This function takes in a folder of preprocessed fMRI volumes (.nii.gz), extracts A424 parcels, and saves these
     timeseries data to .dat files. 
-    
+
     Inputs:
         data_path: Directory of fMRI volumes
-        output_path: Where to store the output parcellated time series (.dat files) 
+        output_path: Where to store the output parcellated time series (.dat files)
     """
-    
+
     # Where is the data located?
     paths = os.listdir(data_path)
     print("fMRI data path specified:", data_path)
@@ -38,8 +38,8 @@ def convert_fMRIvols_to_A424(data_path, output_path):
         print(f'Loading dlabel Atlas File Error for {l}: {str(e)}')
 
     # Create fMRI .dat files
-    for f in paths: # f = './fMRI.nii.gz'
-        file_path = os.path.join(data_path,f)
+    for f in paths:  # f = './fMRI.nii.gz'
+        file_path = os.path.join(data_path, f)
         # Load images and labels
         if ".nii.gz" in f:
             print(f'Loading 4D image from {file_path}')
@@ -80,9 +80,10 @@ def convert_fMRIvols_to_A424(data_path, output_path):
 
             except:
                 print(f"Error with parcel Extraction for {f}")
-        
+
         else:
             print(f"File {f} not a nifti file. Skipping...")
+
 
 def convert_to_arrow_datasets(args, save_path):
     """
@@ -101,7 +102,6 @@ def convert_to_arrow_datasets(args, save_path):
             --uk_biobank_dir
             --arrow_dataset_save_directory
             --dataset_name
-            --normalization_info_file
         save_path: concatenation of dataset save directory and arrow dataset name
     """
     # --- Train/val/test Split ---#
@@ -109,7 +109,7 @@ def convert_to_arrow_datasets(args, save_path):
     # Assuming that filename is patient ID, thus each file with unique name is a separate patient.
     all_dat_files = os.listdir(args["uk_biobank_dir"])
     all_dat_files = [filename for filename in all_dat_files if ".dat" in filename]
-    try: 
+    try:
         all_dat_files.remove("A424_Coordinates.dat")
         print('A424_Coordinates was removed from the list')
     except ValueError:
@@ -118,7 +118,59 @@ def convert_to_arrow_datasets(args, save_path):
 
     train_split_idx = len(all_dat_files)
     train_files = all_dat_files[:train_split_idx]
+    sh_35 = 0
+    sh_less_200 = 0
+    for idx, file in enumerate(tqdm(all_dat_files)):
+        try:
+            sample = np.loadtxt(os.path.join(args["uk_biobank_dir"], file)).T  # 490, 424
+            if sample.shape[0] < 200:
+                print(sample.shape, idx, "ommitted due to insufficient data")
+                sh_less_200 += 1
+            else:
+                sh_35 += 1
+            # print(sample.shape)
+        except UnicodeDecodeError:
+            print(file)
 
+    print(f"Not processing {sh_less_200} files due to insufficient fMRI data")
+    compute_Stats = True
+    if compute_Stats:
+        num_files = sh_35  # len(all_dat_files_rs) + len(all_dat_files_tf)
+        all_stds = np.zeros([num_files, 424])
+        all_data = np.empty([num_files * 200, 424])
+        for idx, file in enumerate(tqdm(train_files)):
+            if idx == num_files:
+                break
+            # if idx%2000==0:
+            #     print('idx: {}, next file: {}'.format(idx,file))
+            try:
+                sample = np.loadtxt(os.path.join(args["uk_biobank_dir"], file))  # 490, 424
+                # print(sample.shape)
+            except UnicodeDecodeError:
+                print(file)
+            # sample = np.loadtxt(os.path.join(uk_biobank_dir_rs, file, 'rfMRI_REST','rfMRI_REST_Atlas_MSMAll_hp2000_clean_MGTR_zscored_HCP_MMP_BNAC.dat')).astype(np.float32).T
+            sample_mean = sample.mean(axis=0, keepdims=True)
+            sample_mean = sample_mean[None, :].repeat(sample.shape[0], 1).squeeze()
+            sample = sample - sample_mean
+
+            idx_sample = idx
+
+            if sample.shape[0] < 200:
+                continue
+            try:
+                all_data[idx * 200:(idx + 1) * 200, :] = sample[:200, :]
+            except ValueError:
+                print(sample.shape)
+                print('idx: {}, idx_sample: {}'.format(idx, idx_sample))
+
+        global_std = np.std(all_data, axis=0)
+        data_median_per_voxel = np.median(all_data, axis=0)
+        data_mean_per_voxel = np.mean(all_data, axis=0)
+
+        all_data_nonzeros = np.copy(all_data)
+        all_data_nonzeros[all_data_nonzeros == 0] = 'nan'
+        quartiles = np.nanpercentile(all_data_nonzeros, [25, 75], axis=0)
+        IQR = quartiles[1, :] - quartiles[0, :]
 
     # --- Normalization Calculations ---#
     # Calculate min and max value across train, validation, and test sets
@@ -131,9 +183,9 @@ def convert_to_arrow_datasets(args, save_path):
         dat_arr = np.loadtxt(os.path.join(args["uk_biobank_dir"], filename)).astype(
             np.float32
         )
-        #assert (
+        # assert (
         #    np.min(dat_arr) >= 0
-        #), "Minimum of patient recording is a negative number, check normalization"
+        # ), "Minimum of patient recording is a negative number, check normalization"
         if np.max(dat_arr) > global_train_max:
             global_train_max = np.max(dat_arr)
         if np.min(dat_arr) < global_train_min:
@@ -165,52 +217,55 @@ def convert_to_arrow_datasets(args, save_path):
         "Patient ID": [],
     }
 
-    with open(args["normalization_info_file"], "rb") as input_file:
-        normalization_info_dataset_v3 = pickle.load(input_file)
-
     for filename in tqdm(train_files, desc="Normalizing Data"):
         dat_arr = np.loadtxt(os.path.join(args["uk_biobank_dir"], filename)).astype(
             np.float32
-        )
-        dat_arr = dat_arr.T
+        ).T
+
+        if dat_arr.shape[0] < 200:
+            continue
+
+        if dat_arr.shape[0] > 424:
+            dat_arr = dat_arr[:350, :]
+
         global_norm_dat_arr = np.copy(dat_arr)
         per_patient_all_voxels_norm_dat_arr = np.copy(dat_arr)
         per_patient_per_voxel_norm_dat_arr = np.copy(dat_arr)
         per_voxel_all_patient_norm_dat_arr = np.copy(dat_arr)
         recording_mean_subtracted = np.copy(dat_arr)
         recording_mean_subtracted2 = np.copy(dat_arr)
-        recording_mean_subtracted3 = np.copy(dat_arr)
+        recording_mean_subtracted3 = np.copy(dat_arr.T)
         global_std = 41.44047  # calculated in normalization notebook
         _99th_percentile = 111.13143061224855  # calculated externally
 
         # All patients, all voxels normalization
         if (global_train_max - global_train_min) > 0.0:
             global_norm_dat_arr = (global_norm_dat_arr - global_train_min) / (
-                global_train_max - global_train_min
+                    global_train_max - global_train_min
             )
 
-        print("Print data array: ", dat_arr.shape)
         # Per patient all voxel normalization
         patient_all_voxel_min_val = np.min(per_patient_all_voxels_norm_dat_arr)
         patient_all_voxel_max_val = np.max(per_patient_all_voxels_norm_dat_arr)
         if (patient_all_voxel_max_val - patient_all_voxel_min_val) > 0.0:
             per_patient_all_voxels_norm_dat_arr = (
-                per_patient_all_voxels_norm_dat_arr - patient_all_voxel_min_val
-            ) / (patient_all_voxel_max_val - patient_all_voxel_min_val)
+                                                          per_patient_all_voxels_norm_dat_arr - patient_all_voxel_min_val
+                                                  ) / (patient_all_voxel_max_val - patient_all_voxel_min_val)
 
         # Per patient per voxel normalization
         for voxel_idx in range(dat_arr.shape[1]):
             patient_voxel_min_val = per_patient_per_voxel_norm_dat_arr[
-                :, voxel_idx
-            ].min()
+                                    :, voxel_idx
+                                    ].min()
             patient_voxel_max_val = per_patient_per_voxel_norm_dat_arr[
-                :, voxel_idx
-            ].max()
+                                    :, voxel_idx
+                                    ].max()
             if (patient_voxel_max_val - patient_voxel_min_val) > 0.0:
                 per_patient_per_voxel_norm_dat_arr[:, voxel_idx] = (
-                    per_patient_per_voxel_norm_dat_arr[:, voxel_idx]
-                    - patient_voxel_min_val
-                ) / (patient_voxel_max_val - patient_voxel_min_val)
+                                                                           per_patient_per_voxel_norm_dat_arr[:,
+                                                                           voxel_idx]
+                                                                           - patient_voxel_min_val
+                                                                   ) / (patient_voxel_max_val - patient_voxel_min_val)
 
         # Per voxel all patient normalization
         for voxel_idx in range(dat_arr.shape[1]):
@@ -218,14 +273,15 @@ def convert_to_arrow_datasets(args, save_path):
             voxel_minimum = global_per_voxel_train_min[voxel_idx]
             if (voxel_maximum - voxel_minimum) > 0.0:
                 per_voxel_all_patient_norm_dat_arr[:, voxel_idx] = (
-                    per_voxel_all_patient_norm_dat_arr[:, voxel_idx] - voxel_minimum
-                ) / (voxel_maximum - voxel_minimum)
+                                                                           per_voxel_all_patient_norm_dat_arr[:,
+                                                                           voxel_idx] - voxel_minimum
+                                                                   ) / (voxel_maximum - voxel_minimum)
 
         # Subtract Mean, Scale by Global Standard Deviation normalization
         for voxel_idx in range(dat_arr.shape[1]):
             voxel_mean = recording_mean_subtracted[:, voxel_idx].mean()
             recording_mean_subtracted[:, voxel_idx] = (
-                recording_mean_subtracted[:, voxel_idx] - voxel_mean
+                    recording_mean_subtracted[:, voxel_idx] - voxel_mean
             )
 
         z_score_global_recording = np.divide(recording_mean_subtracted, global_std)
@@ -234,21 +290,12 @@ def convert_to_arrow_datasets(args, save_path):
         for voxel_idx in range(dat_arr.shape[1]):
             voxel_mean = recording_mean_subtracted2[:, voxel_idx].mean()
             recording_mean_subtracted2[:, voxel_idx] = (
-                recording_mean_subtracted2[:, voxel_idx] - voxel_mean
+                    recording_mean_subtracted2[:, voxel_idx] - voxel_mean
             )
-        
-        #Voxelwise Robust Scaler Normalization
-        recording_mean_subtracted3 = (
-            recording_mean_subtracted3 -
-            normalization_info_dataset_v3['data_median_per_voxel'][:, np.newaxis]
-        ) / normalization_info_dataset_v3['IQR'][:, np.newaxis]
 
-        for idx_voxel in range(recording_mean_subtracted3.shape[1]):
-            recording_mean_subtracted3[:, idx_voxel] = np.clip(
-                    recording_mean_subtracted3[:, idx_voxel],
-                    normalization_info_dataset_v3['_1th_percentile_per_voxel_robustScaling'],
-                    normalization_info_dataset_v3['_99th_percentile_per_voxel_robustScaling']
-        )
+        # Voxelwise Robust Scaler Normalization
+        recording_mean_subtracted3 = recording_mean_subtracted3 - recording_mean_subtracted3.mean(axis=0)
+        recording_mean_subtracted3 = (recording_mean_subtracted3 - data_median_per_voxel / IQR)
 
         _99th_global_recording = np.divide(recording_mean_subtracted2, _99th_percentile)
 
@@ -284,7 +331,8 @@ def convert_to_arrow_datasets(args, save_path):
     )
 
     # --- Save Brain Region Coordinates Into Another Arrow Dataset ---#
-    coords_dat = np.loadtxt(os.path.join("/home/mt2286/project/BrainLM/toolkit/atlases/", "A424_Coordinates.dat")).astype(np.float32)
+    coords_dat = np.loadtxt(
+        os.path.join("./toolkit/atlases/", "A424_Coordinates.dat")).astype(np.float32)
     coords_pd = pd.DataFrame(coords_dat, columns=["Index", "X", "Y", "Z"])
     coords_dataset = Dataset.from_pandas(coords_pd)
     coords_dataset.save_to_disk(

@@ -5,6 +5,7 @@
 
 
 import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
 import math
 from random import randint
 
@@ -53,7 +54,7 @@ checkpoint_n = "500"
 # model
 
 model = BrainLMForPretraining.from_pretrained(
-    f"C:\yamin\eeg-fmri-DL\BrainLM\pretrained_models\checkpoint").to(device)
+    f"./pretrained_models/vitmae_111M").to(device)
 model
 
 
@@ -82,7 +83,7 @@ model.config.train_mode = "auto_encode"
 # In[10]:
 
 
-coords_ds = load_from_disk("C:\\yamin\\eeg-fmri-DL\\BrainLM\\toolkit\\sample_dataset\\a424_fMRI_data\\arrow_form\\Brain_Region_Coordinates")
+coords_ds = load_from_disk("./toolkit/sample_dataset/a424_fMRI_data/arrow_form/Brain_Region_Coordinates")
 print(coords_ds)
 
 
@@ -96,7 +97,7 @@ dataset_v = "v3"
 
 
 # load all data
-train_ds = load_from_disk("C:\\yamin\\eeg-fmri-DL\\BrainLM\\toolkit\\sample_dataset\\a424_fMRI_data\\arrow_form\\train")
+train_ds = load_from_disk("./toolkit/sample_dataset/a424_fMRI_data/arrow_form/train")
 print(train_ds)
 # val_ds = load_from_disk("/home/sr2464/palmer_scratch/datasets/UKB_Large_rsfMRI_and_tffMRI_Arrow_WithRegression_v3_with_metadata/val_ukbiobank")
 # print(val_ds)
@@ -130,7 +131,7 @@ print(train_ds[0]['Filename'])
 # In[16]:
 
 
-dir_name = f"C:\\yamin\\eeg-fmri-DL\\BrainLM\\inference_plots\\dataset_{dataset_v}/{model_name}_ckpt-{checkpoint_n}/"
+dir_name = f"./inference_plots/dataset_{dataset_v}/{model_name}_ckpt-{checkpoint_n}/"
 
 
 # In[17]:
