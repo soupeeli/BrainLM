@@ -416,7 +416,7 @@ def aggregate_predictions(predictions, masks, mode="first"):
             
         m = m.unsqueeze(-1).repeat(1, 1, 1, p.shape[-1])
 
-        preds += p * m 
+        preds += p.cpu() * m
 
     if mode == "mean":
         preds = preds / cum_mask.unsqueeze(-1).repeat(1, 1, 1, p.shape[-1]) # there should not be a division by zero because all tokens masked at least once
