@@ -14,7 +14,7 @@ import glob
 def convert_fMRIvols_to_A424(data_path, output_path):
     """
     This function takes in a folder of preprocessed fMRI volumes (.nii.gz), extracts A424 parcels, and saves these
-    timeseries data to .dat files. 
+    timeseries data to .dat files.
 
     Inputs:
         data_path: Directory of fMRI volumes

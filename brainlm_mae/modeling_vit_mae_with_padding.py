@@ -14,7 +14,6 @@
 # limitations under the License.
 """ PyTorch ViT MAE (masked autoencoder) model."""
 
-
 import collections.abc
 import math
 from copy import deepcopy
@@ -39,7 +38,6 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers import ViTMAEConfig
-
 
 logger = logging.get_logger(__name__)
 
@@ -185,7 +183,7 @@ def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
 
     omega = np.arange(embed_dim // 2, dtype=float)
     omega /= embed_dim / 2.0
-    omega = 1.0 / 10000**omega  # (D/2,)
+    omega = 1.0 / 10000 ** omega  # (D/2,)
 
     pos = pos.reshape(-1)  # (M,)
     out = np.einsum("m,d->md", pos, omega)  # (M, D/2), outer product
@@ -219,7 +217,7 @@ class ViTMAEEmbeddings(nn.Module):
     def initialize_weights(self):
         # initialize (and freeze) position embeddings by sin-cos embedding
         pos_embed = get_2d_sincos_pos_embed(
-            self.position_embeddings.shape[-1], int(self.patch_embeddings.num_patches**0.5), add_cls_token=True
+            self.position_embeddings.shape[-1], int(self.patch_embeddings.num_patches ** 0.5), add_cls_token=True
         )
         self.position_embeddings.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
 
@@ -343,7 +341,7 @@ class ViTMAESelfAttention(nn.Module):
         return x.permute(0, 2, 1, 3)
 
     def forward(
-        self, hidden_states, head_mask: Optional[torch.Tensor] = None, output_attentions: bool = False
+            self, hidden_states, head_mask: Optional[torch.Tensor] = None, output_attentions: bool = False
     ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
         mixed_query_layer = self.query(hidden_states)
 
@@ -424,10 +422,10 @@ class ViTMAEAttention(nn.Module):
         self.pruned_heads = self.pruned_heads.union(heads)
 
     def forward(
-        self,
-        hidden_states: torch.Tensor,
-        head_mask: Optional[torch.Tensor] = None,
-        output_attentions: bool = False,
+            self,
+            hidden_states: torch.Tensor,
+            head_mask: Optional[torch.Tensor] = None,
+            output_attentions: bool = False,
     ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
         self_outputs = self.attention(hidden_states, head_mask, output_attentions)
 
@@ -485,10 +483,10 @@ class ViTMAELayer(nn.Module):
         self.layernorm_after = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
     def forward(
-        self,
-        hidden_states: torch.Tensor,
-        head_mask: Optional[torch.Tensor] = None,
-        output_attentions: bool = False,
+            self,
+            hidden_states: torch.Tensor,
+            head_mask: Optional[torch.Tensor] = None,
+            output_attentions: bool = False,
     ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
         self_attention_outputs = self.attention(
             self.layernorm_before(hidden_states),  # in ViTMAE, layernorm is applied before self-attention
@@ -522,12 +520,12 @@ class ViTMAEEncoder(nn.Module):
         self.gradient_checkpointing = False
 
     def forward(
-        self,
-        hidden_states: torch.Tensor,
-        head_mask: Optional[torch.Tensor] = None,
-        output_attentions: bool = False,
-        output_hidden_states: bool = False,
-        return_dict: bool = True,
+            self,
+            hidden_states: torch.Tensor,
+            head_mask: Optional[torch.Tensor] = None,
+            output_attentions: bool = False,
+            output_hidden_states: bool = False,
+            return_dict: bool = True,
     ) -> Union[tuple, BaseModelOutput]:
         all_hidden_states = () if output_hidden_states else None
         all_self_attentions = () if output_attentions else None
@@ -664,13 +662,13 @@ class ViTMAEModel(ViTMAEPreTrainedModel):
     @add_start_docstrings_to_model_forward(VIT_MAE_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=ViTMAEModelOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
-        self,
-        pixel_values: Optional[torch.FloatTensor] = None,
-        noise: Optional[torch.FloatTensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+            self,
+            pixel_values: Optional[torch.FloatTensor] = None,
+            noise: Optional[torch.FloatTensor] = None,
+            head_mask: Optional[torch.FloatTensor] = None,
+            output_attentions: Optional[bool] = None,
+            output_hidden_states: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
     ) -> Union[Tuple, ViTMAEModelOutput]:
         r"""
         Returns:
@@ -752,7 +750,7 @@ class ViTMAEDecoder(nn.Module):
 
         self.decoder_norm = nn.LayerNorm(config.decoder_hidden_size, eps=config.layer_norm_eps)
         self.decoder_pred = nn.Linear(
-            config.decoder_hidden_size, config.patch_size**2 * config.num_channels, bias=True
+            config.decoder_hidden_size, config.patch_size ** 2 * config.num_channels, bias=True
         )  # encoder to decoder
         self.gradient_checkpointing = False
         self.config = config
@@ -761,7 +759,7 @@ class ViTMAEDecoder(nn.Module):
     def initialize_weights(self, num_patches):
         # initialize (and freeze) position embeddings by sin-cos embedding
         decoder_pos_embed = get_2d_sincos_pos_embed(
-            self.decoder_pos_embed.shape[-1], int(num_patches**0.5), add_cls_token=True
+            self.decoder_pos_embed.shape[-1], int(num_patches ** 0.5), add_cls_token=True
         )
         self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
 
@@ -769,12 +767,12 @@ class ViTMAEDecoder(nn.Module):
         torch.nn.init.normal_(self.mask_token, std=self.config.initializer_range)
 
     def forward(
-        self,
-        hidden_states,
-        ids_restore,
-        output_attentions=False,
-        output_hidden_states=False,
-        return_dict=True,
+            self,
+            hidden_states,
+            ids_restore,
+            output_attentions=False,
+            output_hidden_states=False,
+            return_dict=True,
     ):
         # embed tokens
         x = self.decoder_embed(hidden_states)
@@ -868,7 +866,6 @@ class ViTMAEForPreTraining(ViTMAEPreTrainedModel):
         else:
             raise RuntimeError("New patch size encountered, check init() of VitMAEForPreTraining")
 
-
     def get_input_embeddings(self):
         return self.vit.embeddings.patch_embeddings
 
@@ -907,7 +904,7 @@ class ViTMAEForPreTraining(ViTMAEPreTrainedModel):
         )
         patchified_pixel_values = torch.einsum("nchpwq->nhwpqc", patchified_pixel_values)
         patchified_pixel_values = patchified_pixel_values.reshape(
-            batch_size, num_patches_one_direction * num_patches_one_direction, patch_size**2 * num_channels
+            batch_size, num_patches_one_direction * num_patches_one_direction, patch_size ** 2 * num_channels
         )
         return patchified_pixel_values
 
@@ -924,7 +921,7 @@ class ViTMAEForPreTraining(ViTMAEPreTrainedModel):
         patch_size, num_channels = self.config.patch_size, self.config.num_channels
         num_patches_one_direction = int(patchified_pixel_values.shape[1] ** 0.5)
         # sanity check
-        if num_patches_one_direction**2 != patchified_pixel_values.shape[1]:
+        if num_patches_one_direction ** 2 != patchified_pixel_values.shape[1]:
             raise ValueError("Make sure that the number of patches can be squared")
 
         # unpatchify
@@ -975,16 +972,16 @@ class ViTMAEForPreTraining(ViTMAEPreTrainedModel):
     @add_start_docstrings_to_model_forward(VIT_MAE_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=ViTMAEForPreTrainingOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
-        self,
-        pixel_values: Optional[torch.FloatTensor] = None,
-        ext_outputs = None,
-        labels: torch.Tensor = None,  # not used
-        input_ids: torch.Tensor = None,  # not used
-        noise: Optional[torch.FloatTensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+            self,
+            pixel_values: Optional[torch.FloatTensor] = None,
+            ext_outputs=None,
+            labels: torch.Tensor = None,  # not used
+            input_ids: torch.Tensor = None,  # not used
+            noise: Optional[torch.FloatTensor] = None,
+            head_mask: Optional[torch.FloatTensor] = None,
+            output_attentions: Optional[bool] = None,
+            output_hidden_states: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
     ) -> Union[Tuple, ViTMAEForPreTrainingOutput]:
         r"""
         Returns:
@@ -1017,11 +1014,11 @@ class ViTMAEForPreTraining(ViTMAEPreTrainedModel):
         height_pad_total_half = height_pad_total // 2
         width_pad_total = self.resize_target_size - pixel_values.shape[3]
         width_pad_total_half = width_pad_total // 2
-        
 
         if ext_outputs is None:
             # if predicting last, construct noise vector
-            pixel_values_padded = F.pad(pixel_values, (width_pad_total_half, width_pad_total_half, height_pad_total_half, height_pad_total_half), "constant", -1)
+            pixel_values_padded = F.pad(pixel_values, (
+            width_pad_total_half, width_pad_total_half, height_pad_total_half, height_pad_total_half), "constant", -1)
             if self.config.train_mode != "auto_encode":
                 # determine indeces of timepoints to mask
                 image_end_idx = pixel_values.shape[3] + width_pad_total_half
@@ -1054,10 +1051,10 @@ class ViTMAEForPreTraining(ViTMAEPreTrainedModel):
 
                     pxls_masked_by_token = image_end_idx - patch_start_idx
                     pxls_to_zero = total_pxls_to_mask - pxls_masked_by_token
-                    
+
                     if pxls_to_zero > 0:
-                        pixel_values_padded[:, :, :, (patch_start_idx - pxls_to_zero):patch_start_idx] = 0       
-            
+                        pixel_values_padded[:, :, :, (patch_start_idx - pxls_to_zero):patch_start_idx] = 0
+
             outputs = self.vit(
                 pixel_values_padded,
                 noise=noise,
@@ -1066,22 +1063,25 @@ class ViTMAEForPreTraining(ViTMAEPreTrainedModel):
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
-            
+
         else:
             outputs = ext_outputs
 
         latent = outputs.last_hidden_state
         ids_restore = outputs.ids_restore
-        mask = outputs.mask    
+        mask = outputs.mask
         decoder_outputs = self.decoder(latent, ids_restore)
         logits = decoder_outputs.logits  # shape (batch_size, num_patches, patch_size*patch_size*num_channels)
 
         # Cut padding to get back to [424, 200]
         logits_unpatchified = self.unpatchify(logits)
-        logits_unpatchified_padding_removed = logits_unpatchified[:, :, height_pad_total_half:-height_pad_total_half, width_pad_total_half:-width_pad_total_half]
+        logits_unpatchified_padding_removed = logits_unpatchified[:, :, height_pad_total_half:-height_pad_total_half,
+                                              width_pad_total_half:-width_pad_total_half]
         mask_repeated = mask.unsqueeze(-1).repeat(1, 1, logits.shape[-1])
         mask_repeated_unpatchified = self.unpatchify(mask_repeated)
-        mask_repeated_unpatchified_padding_removed = mask_repeated_unpatchified[:, :, height_pad_total_half:-height_pad_total_half, width_pad_total_half:-width_pad_total_half]
+        mask_repeated_unpatchified_padding_removed = mask_repeated_unpatchified[:, :,
+                                                     height_pad_total_half:-height_pad_total_half,
+                                                     width_pad_total_half:-width_pad_total_half]
 
         # Take mean of 3 channel output --> back to 1 channel fMRI recording image
         pixel_values = pixel_values.mean(dim=1)  # gt signal was repeated across 3 channels, so this makes no difference
@@ -1091,12 +1091,14 @@ class ViTMAEForPreTraining(ViTMAEPreTrainedModel):
         if self.config.train_mode == "predict_last_pixel":
             # zero out mixed token situation when predicting last pixel-wise approach
             mask_repeated_unpatchified_padding_removed[:, :, -total_pxls_to_mask:-pxls_masked_by_token] = 1
-        
-        loss = self.forward_loss(pixel_values, logits_unpatchified_padding_removed, mask_repeated_unpatchified_padding_removed)
+
+        loss = self.forward_loss(pixel_values, logits_unpatchified_padding_removed,
+                                 mask_repeated_unpatchified_padding_removed)
         # loss = self.forward_loss(pixel_values, logits, mask)
 
         if not return_dict:
-            output = (logits_unpatchified_padding_removed, mask_repeated_unpatchified_padding_removed, ids_restore) + outputs[2:]
+            output = (logits_unpatchified_padding_removed, mask_repeated_unpatchified_padding_removed,
+                      ids_restore) + outputs[2:]
             return ((loss,) + output) if loss is not None else output
 
         return ViTMAEForPreTrainingOutput(
